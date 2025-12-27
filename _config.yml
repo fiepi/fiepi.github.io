@@ -31,7 +31,7 @@ components:
         start_date: 2020-05-03
     # My Popular Repositories
     side_bar_repo:
-        enabled: true
+        enabled: false
         limit: 5
     # 文章字数统计
     word_count:
@@ -81,27 +81,27 @@ navs:
     label: 归档
     mobile-hidden: true
 
-  -
-    href: /open-source/
-    label: 开源
-    mobile-hidden: true
+#   -
+#     href: /open-source/
+#     label: 开源
+#     mobile-hidden: true
 
-  -
-    href: /fragments/
-    label: 片段
+#   -
+#     href: /fragments/
+#     label: 片段
 
-  -
-    href: /wiki/
-    label: 维基
+#   -
+#     href: /wiki/
+#     label: 维基
 
-  -
-    href: /links/
-    label: 链接
-    mobile-hidden: true
+#   -
+#     href: /links/
+#     label: 链接
+#     mobile-hidden: true
 
-  -
-    href: /about/
-    label: 关于
+#   -
+#     href: /about/
+#     label: 关于
 
 # ---------------- #
 #       RSS        #
@@ -118,7 +118,7 @@ index:
         # 首页导航栏文字颜色
         nav-color: "rgba(255, 255, 255, .5)"
         # 首页 banner 区背景颜色
-        background-color: "#4183c4"
+        background-color: "#89466e"
         # 首页 banner 区背景图片
         # background-image: "/assets/images/octicons-bg.png"
         # background-repeat: "no-repeat"
@@ -178,13 +178,13 @@ gitalk:
     clientSecret: b42a4178e5fd4a7cf63189ef4b1453b05c375709
 # utterances 配置参考：https://utteranc.es/
 utterances:
-    repo: mzlogin/blog-comments
+    repo: fiepi/blog-comments
 # beaudar 配置参考：https://beaudar.lipk.org/
 beaudar:
-    repo: mzlogin/blog-comments
+    repo: fiepi/blog-comments
 # giscus 配置参考：https://giscus.app/zh-CN
 giscus:
-    repo: mzlogin/blog-comments
+    repo: fiepi/blog-comments
     repo-id: MDEwOlJlcG9zaXRvcnk5MzEyNzkxNw==
     category: Announcements
     category-id: DIC_kwDOBY0E7c4CRtg9
