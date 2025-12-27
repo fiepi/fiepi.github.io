@@ -209,7 +209,7 @@ SubnetId=0x10
 
 安装 `ppp` 包。编辑 `/etc/ppp/peers/private`：
 
-```bash
+```
 plugin pppoe.so
 wan0
 name "你的宽带账号"
@@ -577,7 +577,7 @@ WantedBy=multi-user.target
 
 1. **加载 Systemd 配置**
 
-```bash
+```
 systemctl daemon-reload
 
 ```
@@ -585,7 +585,7 @@ systemctl daemon-reload
 
 2. **启动基础网络和 DNS**
 
-```bash
+```
 systemctl enable --now systemd-networkd.service systemd-resolved.service
 
 ```
@@ -593,7 +593,7 @@ systemctl enable --now systemd-networkd.service systemd-resolved.service
 
 3. **启动拨号** (确保网线已连接光猫)
 
-```bash
+```
 systemctl enable --now ppp@private.service
 
 ```
@@ -601,7 +601,7 @@ systemctl enable --now ppp@private.service
 
 4. **启动基础防火墙** (此时应该能正常上网，但无法翻墙)
 
-```bash
+```
 systemctl enable --now nftables.service
 
 ```
@@ -609,7 +609,7 @@ systemctl enable --now nftables.service
 
 5. **启动透明代理**
 
-```bash
+```
 systemctl enable --now v2ray-tproxy.service
 systemctl enable --now tproxy.service
 
