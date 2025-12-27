@@ -290,7 +290,7 @@ DNSStubListenerExtra=fd00::1
 
 创建目录：`mkdir -p /etc/v2ray/confs`
 
-**1. 基础配置 `/etc/v2ray/confs/01_base.json**`
+ **1. 基础配置 `/etc/v2ray/confs/01_base.json`**
 (包含 Inbounds 和 Routing)
 
 ```json
@@ -321,7 +321,7 @@ DNSStubListenerExtra=fd00::1
 
 ```
 
-**2. 节点配置 `/etc/v2ray/confs/02_outbound.json**`
+**2. 节点配置 `/etc/v2ray/confs/02_outbound.json`**
 (包含 Outbounds)
 
 ```json
@@ -576,6 +576,7 @@ WantedBy=multi-user.target
 一切配置就绪，按照以下顺序启动服务：
 
 1. **加载 Systemd 配置**
+
 ```bash
 systemctl daemon-reload
 
@@ -583,6 +584,7 @@ systemctl daemon-reload
 
 
 2. **启动基础网络和 DNS**
+
 ```bash
 systemctl enable --now systemd-networkd.service systemd-resolved.service
 
@@ -590,6 +592,7 @@ systemctl enable --now systemd-networkd.service systemd-resolved.service
 
 
 3. **启动拨号** (确保网线已连接光猫)
+
 ```bash
 systemctl enable --now ppp@private.service
 
@@ -597,6 +600,7 @@ systemctl enable --now ppp@private.service
 
 
 4. **启动基础防火墙** (此时应该能正常上网，但无法翻墙)
+
 ```bash
 systemctl enable --now nftables.service
 
@@ -604,6 +608,7 @@ systemctl enable --now nftables.service
 
 
 5. **启动透明代理**
+
 ```bash
 systemctl enable --now v2ray-tproxy.service
 systemctl enable --now tproxy.service
