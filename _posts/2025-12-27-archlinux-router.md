@@ -297,12 +297,29 @@ DNSStubListenerExtra=fd00::1
 {
   "log": { "loglevel": "warning" },
   "inbounds": [
-    {
+  {
       "tag": "transparent",
+      "listen": "::",
       "port": 12345,
       "protocol": "dokodemo-door",
-      "settings": { "network": "tcp,udp", "followRedirect": true },
-      "streamSettings": { "sockopt": { "tproxy": "tproxy" } }
+      "settings": {
+        "network": "tcp,udp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "excludedDomain": [],
+        "destOverride": [
+          "http",
+          "tls"
+        ]
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tproxy": "tproxy",
+          "mark": 255
+        }
+      }
     },
     {
       "tag": "socks", "port": 1080, "listen": "192.168.0.1", "protocol": "socks",
@@ -324,7 +341,7 @@ DNSStubListenerExtra=fd00::1
 **2. 节点配置 `/etc/v2ray/confs/02_outbound.json`**
 (包含 Outbounds)
 
-```json
+```
 {
   "outbounds": [
     {
