@@ -613,6 +613,8 @@ delete chain inet router tproxy_logic
 delete chain inet router output_mask
 delete set inet router tproxy_reserved
 delete set inet router tproxy_reserved6
+delete set inet router lan_nets
+delete set inet router lan_nets6
 
 ```
 
