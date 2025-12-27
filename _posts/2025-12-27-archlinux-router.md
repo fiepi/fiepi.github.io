@@ -34,13 +34,14 @@ Intel i226-V 网卡在 Linux 下可能因 ASPM 省电机制导致连接不稳定
 
 编辑 Systemd-boot 的条目文件（通常在 `/boot/loader/entries/` 下，例如 `arch.conf`）：
 
-```ini
+```
 title   Arch Linux
 linux   /vmlinuz-linux
 initrd  /intel-ucode.img
 initrd  /initramfs-linux.img
+options root=LABEL=arch_os rootflags=subvol=@ rw rootfstype=btrfs
 # 追加 pcie_aspm=off 参数
-options root="UUID=你的UUID..." rw loglevel=3 quiet pcie_aspm=off
+options pcie_aspm=off
 
 ```
 
@@ -282,11 +283,83 @@ DNSStubListenerExtra=fd00::1
 
 ---
 
-## 第四步：部署 V2Ray (透明代理后端)
+## 第四步：配置 IPv6 DDNS (动态域名解析)
+
+由于拨号上网的 IPv6 地址是动态变化的，我们需要配置 DDNS 以便通过域名访问家里的服务。我们将使用 `ddclient` 配合 Cloudflare API，并利用 PPPoE 的钩子脚本实现“拨号即更新”。
+
+### 4.1 提取公网 IPv6 脚本
+
+由于网卡上可能存在 Link-Local (fe80) 或 ULA (fd00) 地址，我们需要一个脚本来精准提取公网 Global IPv6 地址。
+
+创建文件 **`/usr/local/bin/get-ip`**：
+
+```
+#!/bin/bash
+# 提取 ppp0 接口的 IPv6 地址，过滤掉本地回环和链路本地地址
+/sbin/ip -6 addr show dev ppp0 | grep inet6 | awk -F '[ \t]+|/' '{print $3}' | grep -v ^::1 | grep -v ^fe80
+
+```
+
+赋予执行权限：
+
+```
+sudo chmod +x /usr/local/bin/get-ip
+
+```
+
+### 4.2 配置 DDClient (以 Cloudflare 为例)
+
+安装 `ddclient` 包，然后编辑配置文件 **`/etc/ddclient/ddclient.conf`**：
+
+```ini
+daemon=1800              # 每 300 秒(5分钟)检查一次 (作为守护进程运行时)
+syslog=yes               # 记录日志
+pid=/var/run/ddclient.pid
+ssl=yes                  # 使用 SSL 连接
+usev4=disabled           # 禁用 IPv4 (家庭宽带通常是大内网)
+# 关键：使用 cmdv6 调用刚才的脚本获取 IP
+usev6=cmdv6, cmdv6='/usr/local/bin/get-ip'
+
+# Cloudflare 配置示例
+protocol=cloudflare,        \
+zone=yourdomain.com,        \
+ttl=1,                      \
+login=token,                \
+password='你的_Cloudflare_API_Token', \
+sub.yourdomain.com
+
+```
+
+### 4.3 配置 PPPoE 拨号触发钩子
+
+为了实现 IP 变动后立即更新，而不是等待 `ddclient` 的轮询周期，我们利用 PPP 的 `ipv6-up.d` 钩子。
+
+创建文件 **`/etc/ppp/ipv6-up.d/01-ddns.sh`**：
+
+```
+#!/bin/sh
+# 拨号成功后等待 5 秒（确保网络稳定），然后强制运行一次 ddclient
+sleep 5
+ddclient -daemon=0 -syslog -verbose -noquiet > /var/log/ddns.log
+
+```
+
+赋予执行权限：
+
+```
+sudo chmod +x /etc/ppp/ipv6-up.d/01-ddns.sh
+
+```
+
+这样配置后，每次路由重启或重新拨号，DDNS 都会在几秒内自动更新。
+
+---
+
+## 第五步：部署 V2Ray (透明代理后端)
 
 我们将采用“配置分离”的方式，便于管理。
 
-### 4.1 配置文件结构
+### 5.1 配置文件结构
 
 创建目录：`mkdir -p /etc/v2ray/confs`
 
@@ -359,7 +432,7 @@ DNSStubListenerExtra=fd00::1
 
 *注意：所有 Outbounds 必须加上 `sockopt: { mark: 255 }`，防止流量回环！*
 
-### 4.2 V2Ray Systemd 服务
+### 5.2 V2Ray Systemd 服务
 
 告诉 Systemd 读取 `/etc/v2ray/confs` 目录。
 
@@ -391,7 +464,7 @@ WantedBy=multi-user.target
 
 ---
 
-## 第五步：现代防火墙 Nftables (基础底座)
+## 第六步：现代防火墙 Nftables (基础底座)
 
 基础防火墙负责 NAT、安全过滤和硬件加速。即使不翻墙，这层也必须运行。
 
@@ -441,11 +514,11 @@ table inet router {
 
 ---
 
-## 第六步：透明代理注入 (可插拔设计)
+## 第七步：透明代理注入 (可插拔设计)
 
 我们将代理规则与基础防火墙解耦。需要三个文件。
 
-### 6.1 注入规则
+### 7.1 注入规则
 
 **`/etc/nftables/tproxy.nft`**
 
@@ -528,7 +601,7 @@ table inet router {
 
 ```
 
-### 6.2 清理规则
+### 7.2 清理规则
 
 **`/etc/nftables/tproxy-remove.nft`**
 
@@ -543,7 +616,7 @@ delete set inet router tproxy_reserved6
 
 ```
 
-### 6.3 代理管理服务
+### 7.3 代理管理服务
 
 **`/etc/systemd/system/tproxy.service`**
 
@@ -588,7 +661,7 @@ WantedBy=multi-user.target
 
 ---
 
-## 第七步：启动与验证
+## 第八步：启动与验证
 
 一切配置就绪，按照以下顺序启动服务：
 
