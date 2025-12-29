@@ -355,7 +355,157 @@ sudo chmod +x /etc/ppp/ipv6-up.d/01-ddns.sh
 
 ---
 
+## 第五步 (可选分支)：使用 Dae 实现内核级高性能代理
+
+**如果你追求极致的性能和更简洁的配置，可以选择 Dae 替代 V2Ray + TProxy 方案。**
+
+**Dae 的优势：**
+
+* **内核级分流 (eBPF)**：直接在内核层处理流量，CPU 占用极低，性能吊打传统用户态代理。
+* **配置简单**：单个配置文件搞定分流、DNS 和节点，无需维护复杂的 iptables/nftables 脚本。
+* **生态友好**：完美支持 Arch Linux（内核版本新）。
+
+**注意：** 如果选择此方案，请**跳过**后文的 **第五步 (部署 V2Ray)** 和 **第七步 (透明代理注入)**。第六步的基础防火墙（NAT/安全过滤）依然建议保留。
+
+### 5.1 安装 Dae
+
+从 AUR 安装：
+
+```
+yay -S dae
+# 或者安装预编译版
+yay -S dae-bin
+
+```
+
+### 5.2 编写配置文件
+
+创建或编辑 `/etc/dae/config.dae`。
+
+```javascript
+global {
+    # 绑定 LAN 接口 (网桥)
+    lan_interface: br-lan
+    
+    # 绑定 WAN 接口 (自动识别，通常是 ppp0 或 wan0)
+    wan_interface: auto
+
+    log_level: info
+    allow_insecure: false
+    
+    # 自动优化内核参数 (如 ip_forward)
+    auto_config_kernel_parameter: true
+}
+
+node {
+    # 在此处填入你的节点链接
+    # 支持 vmess, vless, trojan, hysteria2, tuic 等主流协议
+    proxy1: 'vmess://......'
+}
+
+dns {
+    upstream {
+        # 上游 DNS 定义
+        googledns: 'tcp+udp://dns.google:53'
+        ali_quic: 'quic://dns.alidns.com:853'
+    }
+
+    routing {
+        request {
+            # 国内域名和特定 Geosite 使用阿里 DNS (QUIC)
+            # 注意：混合 Geosite 和域名时，普通域名必须加 suffix: 前缀
+            qname(
+                suffix: fiepi.com,
+                suffix: jetbrains.com.cn,
+                suffix: mirrorbits.lineageos.org,
+                suffix: cn.bing.com,
+                suffix: wenku8.net,
+                geosite: private,
+                geosite: xiaomi,
+                geosite: category-games,
+                geosite: apple,
+                geosite: cn
+            ) -> ali_quic
+            
+            # 默认使用 Google DNS
+            fallback: googledns
+        }
+    }
+}
+
+group {
+    proxy {
+        # 策略组：选择延迟最低的节点
+        policy: min_moving_avg
+    }
+}
+
+routing {
+    # === 1. 强制直连规则 ===
+    # 关键系统进程直连
+    pname(NetworkManager, systemd-resolved, dnsmasq) -> must_direct
+    
+    # 保留地址、组播地址直连
+    dip(224.0.0.0/3, 'fd00::/8', 'ff00::/8') -> direct
+    dip(geoip:private) -> direct
+    dip(geoip:cn) -> direct
+    
+    # 广告屏蔽
+    domain(geosite: category-ads-all) -> block
+
+    # 直连域名列表 (对应 DNS 规则)
+    domain(
+        fiepi.com,
+        jetbrains.com.cn,
+        mirrorbits.lineageos.org,
+        cn.bing.com,
+        wenku8.net,
+        geosite:xiaomi,
+        geosite:private,
+        geosite:category-vpnservices,
+        geosite:category-games,
+        geosite:apple,
+        geosite:cn
+    ) -> direct
+
+    # === 2. 强制代理规则 ===
+    domain(
+        bangumi.moe,
+        flathub.org,
+        community.oneplus.com,
+        gradle.org,
+        geosite:wikimedia,
+        geosite:mihoyo,
+        geosite:github,
+        geosite:openai
+    ) -> proxy
+
+    # === 3. 端口分流 (关键) ===
+    # 仅代理常用端口 (1-1024)，其余高位端口直连
+    # 这能有效解决 BT 下载跑流量、游戏 UDP 语音异常等问题
+    dport(1-1024) -> proxy
+
+    # === 4. 兜底规则 ===
+    # 上面没匹配到的全部直连
+    fallback: direct
+}
+
+```
+
+### 5.3 启动 Dae
+
+```
+# 启用并立即启动
+systemctl enable --now dae.service
+
+```
+
+---
+
+
 ## 第五步：部署 V2Ray (透明代理后端)
+
+*(如果你选择了 Dae 方案，请跳过此步)*
 
 我们将采用“配置分离”的方式，便于管理。
 
@@ -466,6 +616,10 @@ WantedBy=multi-user.target
 
 ## 第六步：现代防火墙 Nftables (基础底座)
 
+**无论选择 V2Ray 还是 Dae，这一步都建议保留。**
+它负责基础的 NAT (让局域网能上网) 和端口安全。
+*注意：Dae 自带 Flow Offloading 效果，本配置中的 offload 不会冲突，可共存。*
+
 基础防火墙负责 NAT、安全过滤和硬件加速。即使不翻墙，这层也必须运行。
 
 **`/etc/nftables.conf`**
@@ -515,6 +669,8 @@ table inet router {
 ---
 
 ## 第七步：透明代理注入 (可插拔设计)
+
+*(如果你选择了 Dae 方案，请**跳过**此步，Dae 会自动处理流量劫持)*
 
 我们将代理规则与基础防火墙解耦。需要三个文件。
 
@@ -665,55 +821,28 @@ WantedBy=multi-user.target
 
 ## 第八步：启动与验证
 
-一切配置就绪，按照以下顺序启动服务：
+根据你选择的方案，启动服务略有不同。
 
-1. **加载 Systemd 配置**
+### 方案 A：Dae (推荐)
 
-```
-systemctl daemon-reload
+1. **加载配置**：`systemctl daemon-reload`
+2. **基础服务**：`systemctl enable --now systemd-networkd systemd-resolved ppp@private`
+3. **基础防火墙**：`systemctl enable --now nftables`
+4. **核心代理**：`systemctl enable --now dae`
 
-```
+### 方案 B：V2Ray + TProxy
 
-
-2. **启动基础网络和 DNS**
-
-```
-systemctl enable --now systemd-networkd.service systemd-resolved.service
-
-```
-
-
-3. **启动拨号** (确保网线已连接光猫)
-
-```
-systemctl enable --now ppp@private.service
-
-```
-
-
-4. **启动基础防火墙** (此时应该能正常上网，但无法翻墙)
-
-```
-systemctl enable --now nftables.service
-
-```
-
-
-5. **启动透明代理**
-
-```
-systemctl enable --now v2ray-tproxy.service
-systemctl enable --now tproxy.service
-
-```
-
-
+1. **加载配置**：`systemctl daemon-reload`
+2. **基础服务**：`systemctl enable --now systemd-networkd systemd-resolved ppp@private`
+3. **基础防火墙**：`systemctl enable --now nftables`
+4. **V2Ray后端**：`systemctl enable --now v2ray-tproxy`
+5. **TProxy注入**：`systemctl enable --now tproxy`
 
 ### 验证方法
 
-* **查看 IP**：局域网电脑访问 `ip138.com` 应显示宽带 IP，访问 `whatismyip.com` 应显示节点 IP。
-* **查看防火墙加速**：运行 `nft list ruleset`，你应该能看到 `flow offload @f` 规则。
+* **查看内核日志 (Dae)**：运行 `journalctl -u dae -f`，观察是否有流量日志。
 * **Android 测试**：连接 WiFi，锁屏放置 1 小时，解锁后立即打开网页，应无延迟。
+* **性能测试**：在局域网内跑满 2.5G 带宽，使用 `htop` 查看软路由 CPU 占用。Dae 方案下 `softirq` 应非常低。
 
 ---
 
