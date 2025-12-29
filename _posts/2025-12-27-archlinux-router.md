@@ -373,7 +373,7 @@ Dae 依赖 eBPF，对内核版本要求较高（Arch Linux 默认内核已满足
 
 **1. 检查 AVX2 指令集支持**
 
-你的 **Intel N100** 处理器是支持 **AVX2** 指令集的，这能显著提升加解密效率和数据包处理性能。建议先确认一下：
+**Intel N100** 处理器是支持 **AVX2** 指令集的，这能显著提升加解密效率和数据包处理性能。建议先确认一下：
 
 ```
 # 如果输出 avx2，则说明支持
@@ -411,7 +411,7 @@ yay -S dae-avx2-bin
 
 创建或编辑 `/etc/dae/config.dae`。
 
-```javascript
+```perl
 global {
     # 绑定 LAN 接口 (网桥)
     lan_interface: br-lan
